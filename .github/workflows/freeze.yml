@@ -27,11 +27,19 @@ jobs:
       - name: 🌐 安装 Playwright 浏览器
         run: npx playwright install chromium --with-deps
 
+      - name: 🖥️ 安装 xvfb（虚拟显示器）
+        run: |
+          apt-get update -qq && apt-get install -y -qq xvfb
+          echo "✅ xvfb 已安装"
+
       - name: 🛡️ 启动 GOST 代理转发
-        if: ${{ env.GOST_PROXY != '' }}
         env:
           GOST_PROXY: ${{ secrets.GOST_PROXY }}
         run: |
+          if [ -z "$GOST_PROXY" ]; then
+            echo "⚠️ 未配置 GOST_PROXY，直连运行"
+            exit 0
+          fi
           VERSION=$(curl -s https://api.github.com/repos/ginuerzh/gost/releases/latest \
             | grep '"tag_name"' | cut -d'"' -f4 | tr -d 'v')
           echo "📦 GOST 版本: $VERSION"
@@ -44,12 +52,13 @@ jobs:
           curl -s -x http://127.0.0.1:8080 https://api.ipify.org \
             | sed 's/\([0-9]*\.[0-9]*\.[0-9]*\.\)[0-9]*/\1**/g'
 
-      - name: 🚀 运行续期脚本
+      - name: 🚀 运行续期脚本（有头模式 + 虚拟显示）
         env:
           DISCORD_TOKEN: ${{ secrets.DISCORD_TOKEN }}
           TG_BOT:               ${{ secrets.TG_BOT }}
           GOST_PROXY:           http://127.0.0.1:8080
-        run: npx playwright test tests/freeze.spec.js
+          HEADED:               '1'
+        run: xvfb-run -a npx playwright test tests/freeze.spec.js
 
       - name: 📸 上传失败截图
         if: failure()
